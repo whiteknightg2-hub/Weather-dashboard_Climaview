@@ -49,11 +49,14 @@ There is no backend server. All weather data comes directly from the free [Open-
 | # | Deliverable | Description |
 |---|-------------|-------------|
 | 1 | `index.html` | The single page of the application. |
-| 2 | `style.css` | All visual styling and responsive rules. |
-| 3 | `app.js` | All application logic (fetch, display, error handling). |
-| 4 | `README.md` | Setup and usage instructions. |
-| 5 | Public GitHub repository | Source code hosted on GitHub. |
-| 6 | GitHub Pages deployment *(optional)* | Live, shareable URL. |
+| 2 | `css/style.css` | All visual styling and responsive rules. |
+| 3 | `js/script.js` | App entry point: event handling and module coordination. |
+| 4 | `js/weather.js` | Open-Meteo API requests, error handling, and WMO code mapping. |
+| 5 | `js/ui.js` | DOM updates: loading, error, and weather display states. |
+| 6 | `js/cities.js` | Supported city names and coordinates. |
+| 7 | `README.md` | Setup and usage instructions. |
+| 8 | Public GitHub repository | Source code hosted on GitHub. |
+| 9 | GitHub Pages deployment *(optional)* | Live, shareable URL. |
 
 ---
 

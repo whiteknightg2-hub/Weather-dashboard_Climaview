@@ -14,17 +14,20 @@ The application is a **client-side-only, single-page application (SPA)**. There 
 
 ```
 Browser
-  └── index.html          (page structure)
-       ├── style.css       (visual styles, loaded via <link>)
-       └── app.js          (all logic, loaded via <script type="module"> or plain <script>)
-            └── Open-Meteo API  (external, fetched over HTTPS)
+  └── index.html               (page structure)
+       ├── css/style.css        (visual styles, loaded via <link>)
+       └── js/script.js         (entry point, loaded via <script type="module">)
+            ├── js/weather.js   (Open-Meteo API fetch and error handling)
+            ├── js/ui.js        (DOM rendering: loading, error, weather states)
+            └── js/cities.js    (city names and coordinates)
+                 └── Open-Meteo API  (external, fetched over HTTPS)
 ```
 
-The browser loads `index.html`, which pulls in `style.css` and `app.js`. When the user selects a city, `app.js` calls the Open-Meteo API, receives JSON, and updates the DOM directly.
+The browser loads `index.html`, which pulls in `css/style.css` and `js/script.js`. When the user selects a city, `script.js` calls `fetchWeather()` from `weather.js`, which calls the Open-Meteo API, and then passes the result to `ui.js` to update the DOM.
 
 ✅ No backend.  
 ✅ No npm, no Webpack, no Vite.  
-🔍 Whether to use `<script type="module">` (modern ES module style) or a plain `<script>` tag is a minor detail to decide during implementation. Either approach is valid for this project size.
+✅ `<script type="module">` is confirmed — ES module `import`/`export` syntax is used across all four JS files.
 
 ---
 
@@ -47,18 +50,23 @@ The browser loads `index.html`, which pulls in `style.css` and `app.js`. When th
 
 ```
 weather-dashboard/
-├── index.html        ← The only HTML page
-├── style.css         ← All CSS styles
-├── app.js            ← All JavaScript logic
-├── README.md         ← How to open and use the project
-├── PROJECT.md        ← Project overview and milestones
-├── AGENTS.md         ← Rules for AI coding agents
-├── PRD.md            ← Product requirements
-├── TKD.md            ← This file (technical knowledge)
-└── DESIGN.md         ← Visual design specification
+├── index.html           ← The only HTML page
+├── css/
+│   └── style.css        ← All CSS styles
+├── js/
+│   ├── script.js        ← App entry point: events and coordination
+│   ├── weather.js       ← Open-Meteo API requests and data handling
+│   ├── ui.js            ← DOM updates: loading, error, and weather display
+│   └── cities.js        ← City names and coordinates
+├── README.md            ← How to open and use the project
+├── PROJECT.md           ← Project overview and milestones
+├── AGENTS.md            ← Rules for AI coding agents
+├── PRD.md               ← Product requirements
+├── TKD.md               ← This file (technical knowledge)
+└── DESIGN.md            ← Visual design specification
 ```
 
-✅ Flat structure — no sub-folders needed for a project of this size.  
+✅ Sub-folder structure confirmed — `css/` contains the stylesheet; `js/` contains the four JavaScript modules.  
 🔍 A `/icons/` folder may be added later if SVG weather icons are stored locally instead of rendered as emoji or Unicode characters.
 
 ---
@@ -77,7 +85,7 @@ https://api.open-meteo.com/v1/forecast
 |-----------|-------|---------|
 | `latitude` | e.g. `51.5074` | City latitude (decimal degrees). |
 | `longitude` | e.g. `-0.1278` | City longitude (decimal degrees). |
-| `current` | `temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m` | Comma-separated list of current-condition fields to fetch. |
+| `current` | `temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m` | Comma-separated list of current-condition fields to fetch. |
 
 > **What is `current`?** The `current` parameter tells the API to return the most recently observed values rather than an hourly or daily forecast. ✅ **Confirmed by a live API call made on 2026-10-09.** Data updates approximately every **15 minutes** (the response contains `"interval": 900`, where 900 seconds = 15 minutes).
 
@@ -87,7 +95,7 @@ https://api.open-meteo.com/v1/forecast
 https://api.open-meteo.com/v1/forecast
   ?latitude=51.5074
   &longitude=-0.1278
-  &current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m
+  &current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m
 ```
 
 ### 4.4 Example JSON Response (confirmed real structure — numeric values change with live weather)
@@ -127,8 +135,10 @@ The shape below was returned by a live call on 2026-10-09 for London. **The numb
 | Field | Unit | Confirmed? |
 |-------|------|------------|
 | `temperature_2m` | °C (default) | ✅ Confirmed |
+| `apparent_temperature` | °C (default) | ✅ Confirmed |
 | `relative_humidity_2m` | % | ✅ Confirmed |
 | `wind_speed_10m` | km/h (default) | ✅ Confirmed |
+| `wind_direction_10m` | ° (degrees, 0–360) | ✅ Confirmed |
 | `weather_code` | WMO code integer (see Section 6) | ✅ Confirmed |
 
 ✅ Default units match the project requirements; no extra unit parameters are needed.
@@ -137,19 +147,19 @@ The shape below was returned by a live call on 2026-10-09 for London. **The numb
 
 ## 5. City Coordinate Data
 
-The city list is defined as a JavaScript array of objects inside `app.js`.
+The city list is defined as a JavaScript array of objects exported from `js/cities.js`. It is imported by `js/script.js` at startup to populate the dropdown and look up coordinates for each API request.
 
 ```js
-// Assumption: coordinates sourced from public geographic data.
-// Verify each coordinate pair before publishing the project.
-const CITIES = [
-  { name: "London",    lat: 51.5074,  lon: -0.1278  },
-  { name: "New York",  lat: 40.7128,  lon: -74.0060 },
-  { name: "Tokyo",     lat: 35.6895,  lon: 139.6917 },
-  { name: "Sydney",    lat: -33.8688, lon: 151.2093 },
-  { name: "Mumbai",    lat: 19.0760,  lon: 72.8777  },
-  { name: "Paris",     lat: 48.8566,  lon: 2.3522   },
-  { name: "Cairo",     lat: 30.0444,  lon: 31.2357  },
+// Source: js/cities.js (actual current content)
+// ⚠️ Assumption: coordinates are standard reference values.
+//    Verify against a reliable source (e.g. Google Maps) before publishing.
+export const CITIES = [
+  { name: "Indore",    lat:  22.7196,  lon:  75.8577  },
+  { name: "Bhopal",    lat:  23.2599,  lon:  77.4126  },
+  { name: "Mumbai",    lat:  19.0760,  lon:  72.8777  },
+  { name: "New Delhi", lat:  28.6139,  lon:  77.2090  },
+  { name: "Bengaluru", lat:  12.9716,  lon:  77.5946  },
+  { name: "Chennai",   lat:  13.0827,  lon:  80.2707  },
 ];
 ```
 
@@ -195,22 +205,23 @@ This describes exactly what happens, step by step, from the user's action to the
 
 ```
 1. User selects a city from the <select> dropdown.
-2. app.js reads the selected city's lat/lon from the CITIES array.
-3. app.js hides the weather data panel and shows the loading spinner.
-4. app.js constructs the API URL with the lat/lon and required fields.
-5. app.js calls: const response = await fetch(url)
+2. script.js reads the selected city's lat/lon from the CITIES array (imported from cities.js).
+3. script.js calls showLoading() from ui.js, which hides other panels and shows the spinner.
+4. weather.js constructs the API URL with the city's lat/lon and the required field names.
+5. weather.js calls: const response = await fetch(url)
 6a. If fetch throws (network offline):
-    → Jump to Error Handling (Section 8).
+    → weather.js throws a descriptive Error; script.js catches it → Section 8.
 6b. If response.ok is false (e.g., HTTP 400, 500):
-    → Jump to Error Handling (Section 8).
-7. app.js calls: const data = await response.json()
-8. app.js reads data.current.temperature_2m, .relative_humidity_2m,
+    → weather.js throws a descriptive Error; script.js catches it → Section 8.
+7. weather.js calls: const data = await response.json()
+8. weather.js reads data.current.temperature_2m, .relative_humidity_2m,
           .weather_code, .wind_speed_10m
 9. If any field is undefined or null:
-    → Jump to Error Handling (Section 8).
-10. app.js looks up the weather code in WEATHER_CODES to get label + icon.
-11. app.js updates the DOM: writes temperature, condition, icon, humidity, wind.
-12. app.js hides the loading spinner and shows the weather data panel.
+    → weather.js throws a descriptive Error; script.js catches it → Section 8.
+10. weather.js looks up the weather code in WEATHER_CODES to get label + icon.
+11. weather.js returns the weather object to script.js.
+12. script.js calls showWeather(data) from ui.js, which writes all values to the DOM.
+13. ui.js hides the loading spinner and reveals the weather card.
 ```
 
 ---

@@ -1,0 +1,848 @@
+/*
+ * style.css — Weather Dashboard · Brick 3: Visual Styling
+ *
+ * Organised in this order:
+ *   1.  CSS Custom Properties (design tokens)
+ *   2.  CSS Reset
+ *   3.  Layout — page skeleton, header, main, footer
+ *   4.  Status / Live Region (screen-reader only)
+ *   5.  City Selector
+ *   6.  Loading State
+ *   7.  Error State
+ *   8.  Empty State
+ *   9.  Weather Card — primary section
+ *  10.  Weather Card — temperature + description
+ *  11.  Info Cards (humidity & wind)
+ *  12.  Utility Classes
+ *  13.  Responsive — tablet (≥ 600 px)
+ *  14.  Responsive — mobile (≤ 480 px)
+ *  15.  Accessibility — reduced-motion
+ *
+ * ─────────────────────────────────────────────────────────────
+ * Key concept — CSS custom properties (variables):
+ *   --color-accent: #3182ce;
+ * Define once, reuse everywhere. To retheme, change one value.
+ * ─────────────────────────────────────────────────────────────
+ */
+
+
+/* =============================================================
+   1. CSS CUSTOM PROPERTIES (DESIGN TOKENS)
+   Source: DESIGN.md §2 Colours, §3 Typography, §4 Spacing
+   ============================================================= */
+:root {
+  /* --- Backgrounds ----------------------------------------- */
+  --color-bg-page:  #f5f7fa;   /* Very light grey — whole page  */
+  --color-bg-card:  #ffffff;   /* Pure white — card surfaces    */
+
+  /* --- Borders & Shadows ----------------------------------- */
+  --color-border:   #e2e8f0;
+  --shadow-card:    0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.12);
+
+  /* --- Text colours ---------------------------------------- */
+  --color-text-primary:   #1a202c;  /* Near-black — headings, data */
+  --color-text-secondary: #4a5568;  /* Medium grey — labels        */
+  --color-text-muted:     #718096;  /* Light grey — hints, footer  */
+
+  /* --- Accent (blue) --------------------------------------- */
+  --color-accent:       #3182ce;
+  --color-accent-hover: #2b6cb0;
+  --color-accent-active:#2563a8;
+
+  /* --- Error state ----------------------------------------- */
+  --color-error-bg:     #fff5f5;
+  --color-error-text:   #c53030;
+  --color-error-border: #fc8181;
+
+  /* --- Typography ------------------------------------------ */
+  /*
+   * System font stack — uses the operating system's native font.
+   * No external font file is loaded, so the page is faster.
+   */
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Helvetica, Arial, sans-serif;
+
+  --font-size-sm:   0.875rem;  /* 14 px — labels, captions    */
+  --font-size-base: 1rem;      /* 16 px — body text           */
+  --font-size-lg:   1.25rem;   /* 20 px — card headings       */
+  --font-size-xl:   2rem;      /* 32 px — temperature (mobile)*/
+  --font-size-xxl:  3.5rem;    /* 56 px — temperature (desktop)*/
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold:   700;
+
+  --line-height-base: 1.5;
+
+  /* --- Spacing scale (multiples of 4 px) ------------------- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+
+  /* --- Shape ----------------------------------------------- */
+  --radius-sm:  8px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
+
+  /* --- Transitions ----------------------------------------- */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+}
+
+
+/* =============================================================
+   2. CSS RESET
+   Gives a consistent baseline across all browsers.
+   ============================================================= */
+
+/*
+ * box-sizing: border-box — padding and border are included in
+ * an element's total width/height. Without this, adding padding
+ * makes elements unexpectedly wider.
+ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-base);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-page);
+
+  /*
+   * min-height: 100dvh fills the full viewport so the footer
+   * always stays at the bottom even with minimal content.
+   * dvh = "dynamic viewport height" — behaves well on mobile
+   * browsers that show/hide the address bar.
+   */
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+
+/* =============================================================
+   3. LAYOUT — PAGE SKELETON
+   ============================================================= */
+
+/* --- Header ----------------------------------------------- */
+/*
+ * The header holds the branding row (logo + title + subtitle)
+ * and the city selector below it.
+ * flex-column + align-items: center keeps both rows centred.
+ */
+.site-header {
+  background-color: var(--color-bg-card);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-4) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/*
+ * .site-branding — horizontal row: [SVG logo] [title + subtitle]
+ */
+.site-branding {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/*
+ * .site-logo — inline SVG icon.
+ * flex-shrink: 0 prevents it from squashing on narrow screens.
+ */
+.site-logo {
+  flex-shrink: 0;
+  display: block;
+}
+
+/*
+ * .site-titles — vertical stack: <h1> above <p> subtitle.
+ */
+.site-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.site-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+/*
+ * .site-subtitle — "Live weather, at a glance"
+ */
+.site-subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+}
+
+/* --- Main content area ------------------------------------ */
+/*
+ * flex: 1 pushes the footer to the bottom.
+ * max-width + margin: auto centres the content column.
+ */
+.site-main {
+  flex: 1;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* --- Footer ----------------------------------------------- */
+.site-footer {
+  text-align: center;
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.footer-attribution {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.footer-copy {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.site-footer a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  text-decoration: underline;
+}
+
+.site-footer a:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+
+/* =============================================================
+   4. STATUS / LIVE REGION  (screen-reader only)
+   ─────────────────────────────────────────────────────────────
+   .weather-status is ALWAYS in the DOM so the browser registers
+   it as an aria-live region BEFORE JavaScript writes to it.
+   Visually hidden using the standard "sr-only" pattern:
+   we do NOT use display:none because that breaks aria-live.
+   ============================================================= */
+.weather-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* .status-message — the <p> inside the live region */
+.status-message {
+  /* Inherits the visually-hidden layout from .weather-status */
+}
+
+
+/* =============================================================
+   5. CITY SELECTOR
+   ============================================================= */
+
+/*
+ * .selector-wrapper — flex column wrapping the <label> and <select>.
+ * max-width caps the dropdown at a comfortable reading width.
+ */
+.selector-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 320px;    /* DESIGN.md §6.1 */
+}
+
+.selector-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+/*
+ * Native <select> — maximum accessibility, zero JS overhead.
+ * appearance: none removes the browser's default dropdown arrow
+ * so we can draw our own with a background SVG.
+ */
+.city-select {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  padding-right: var(--space-8);           /* Room for the custom arrow */
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  appearance: none;
+
+  /* Custom dropdown chevron (inline SVG data URI) */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234a5568' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-3) center;
+
+  transition: border-color var(--transition-fast);
+}
+
+.city-select:hover {
+  border-color: var(--color-accent);
+}
+
+/*
+ * :focus-visible fires only for keyboard navigation (Tab key),
+ * not for mouse clicks — keeps the UI clean while staying accessible.
+ * Never remove this rule; it is required for keyboard users.
+ */
+.city-select:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-color: var(--color-accent);
+}
+
+/*
+ * Visually communicate that the dropdown is unavailable while
+ * a weather request is in flight (JavaScript sets disabled=true).
+ */
+.city-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+
+/* =============================================================
+   6. LOADING STATE
+   ============================================================= */
+/*
+ * .loading-indicator — centred column: spinner + "Fetching…" text.
+ * Hidden by default; shown by JavaScript while the API call runs.
+ */
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-8) 0;
+}
+
+.loading-text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/*
+ * .spinner — a CSS-animated rotating ring.
+ * The ring is drawn with border; only the top segment is blue
+ * (border-top-color), giving the impression of spinning.
+ * The animation is defined in @keyframes spin below.
+ */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/*
+ * @keyframes — defines the start and end of the animation.
+ * "to" is shorthand for 100% (the end frame).
+ * We rotate the spinner one full turn (360°) per cycle.
+ */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+/* =============================================================
+   7. ERROR STATE
+   ============================================================= */
+/*
+ * .error-panel — light red card shown when the API call fails.
+ * Uses role="alert" in HTML so screen readers announce it immediately.
+ */
+.error-panel {
+  background-color: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Decorative ⚠️ emoji — aria-hidden="true" in HTML */
+.error-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+/* The user-facing error description */
+.error-message {
+  font-size: var(--font-size-base);
+  color: var(--color-error-text);
+  max-width: 36ch;          /* Limit line length for readability */
+  line-height: var(--line-height-base);
+}
+
+/*
+ * .retry-button — styled as a primary action button.
+ * DESIGN.md §6.4: blue background, white text, 8 px radius.
+ */
+.retry-button {
+  background-color: var(--color-accent);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-6);
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: background-color var(--transition-base),
+              transform var(--transition-fast);
+}
+
+.retry-button:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.retry-button:active {
+  background-color: var(--color-accent-active);
+  transform: scale(0.98);   /* Subtle press effect */
+}
+
+.retry-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+
+/* =============================================================
+   8. EMPTY STATE
+   ============================================================= */
+/*
+ * Shown on page load before a city is chosen.
+ * DESIGN.md §7.1: centred muted text prompt.
+ */
+.empty-state {
+  text-align: center;
+  padding: var(--space-12) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.empty-text {
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+  max-width: 28ch;
+  line-height: var(--line-height-base);
+}
+
+
+/* =============================================================
+   9. WEATHER CARD — primary section (icon, city name, label)
+   ============================================================= */
+
+/*
+ * .weather-card — the white card holding all weather data.
+ * DESIGN.md §6.2: white bg, 1 px border, 16 px radius, card shadow.
+ * gap: space-6 gives breathing room between the three rows.
+ */
+.weather-card {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-8);          /* 32 px — DESIGN.md §6.2 desktop */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/*
+ * .weather-primary — the top row: weather icon + [city name + label].
+ * On mobile this stacks vertically (column); on desktop it becomes
+ * a horizontal row (see §13 responsive).
+ * text-align: center applies on mobile.
+ */
+.weather-primary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+/*
+ * .weather-icon — the large emoji (e.g. ☀️ ⛅ 🌧️).
+ * JavaScript writes it; aria-hidden="true" in HTML (decorative).
+ */
+.weather-icon {
+  font-size: 4rem;     /* ~64 px — DESIGN.md §5.2 says 48–64 px */
+  line-height: 1;
+  /* Subtle entrance animation when the card becomes visible */
+  animation: fadeIn 0.3s ease;
+}
+
+/*
+ * .weather-title-group — stacks city name + "Current weather" label.
+ */
+.weather-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+/*
+ * .city-name — the <h2> JavaScript populates with the selected city.
+ * Bold and sized above body text but below the temperature.
+ */
+.city-name {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+/*
+ * .current-weather-label — static "Current weather" caption.
+ * Kept small and muted so it doesn't compete with the city name.
+ */
+.current-weather-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-normal);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Horizontal rule between sections */
+.weather-divider {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 0;     /* gap on .weather-card handles the spacing */
+}
+
+
+/* =============================================================
+   10. WEATHER CARD — temperature + description
+   ============================================================= */
+
+/*
+ * .weather-readings — centres the temperature group horizontally.
+ */
+.weather-readings {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/*
+ * .temperature-group — stacks the temperature line and
+ * the condition description below it.
+ */
+.temperature-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/*
+ * .weather-temp — the <p> containing both the number span
+ * and the °C unit span. Flex row keeps them side by side
+ * and baseline-aligned.
+ */
+.weather-temp {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  line-height: 1;
+}
+
+/*
+ * .temp-value — the numeric part written by JavaScript (e.g. "18").
+ * font-size-xxl = 56 px on desktop — the most dominant element.
+ * Reduced to font-size-xl on mobile (see §14 responsive).
+ */
+.temp-value {
+  font-size: var(--font-size-xxl);   /* 56 px */
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums; /* Prevents layout shift as digits change */
+}
+
+/*
+ * .temp-unit — the static "°C" span always next to the number.
+ * Smaller so the number reads first; muted colour for hierarchy.
+ */
+.temp-unit {
+  font-size: var(--font-size-xl);    /* 32 px */
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  line-height: 1;
+}
+
+/*
+ * .weather-description — the condition label (e.g. "Partly cloudy").
+ * JavaScript writes it; aria-hidden is NOT set (it conveys information).
+ */
+.weather-description {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-normal);
+  text-align: center;
+}
+
+
+/* =============================================================
+   11. INFO CARDS — humidity & wind
+   ============================================================= */
+
+/*
+ * .weather-secondary — two-column grid holding the info cards.
+ * On mobile, overridden to single column (see §14 responsive).
+ */
+.weather-secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+/*
+ * .info-card — smaller white card for each metric.
+ * Same visual language as the main card (border, radius, shadow)
+ * but with a slightly warmer background and smaller padding.
+ */
+.info-card {
+  background-color: var(--color-bg-page);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/*
+ * .info-label — "Humidity" / "Wind Speed" text + inline SVG icon.
+ * display: flex + align-items: center lines up the icon with text.
+ */
+.info-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  display: flex;
+  align-items: center;
+}
+
+/* .metric-icon — the small inline SVG (water drop, wind lines) */
+.metric-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: var(--space-1);
+}
+
+/* .info-value — the actual reading, e.g. "74 %" or "22 km/h" */
+.info-value {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* =============================================================
+   12. UTILITY CLASSES
+   ============================================================= */
+
+/*
+ * .hidden — completely removes an element from the visual layout
+ * AND from accessibility tools.
+ * JavaScript toggles this class to show/hide panels.
+ * !important ensures it wins even when combined with display rules.
+ */
+.hidden {
+  display: none !important;
+}
+
+/*
+ * @keyframes fadeIn — used by .weather-icon for a gentle entrance.
+ * Kept subtle (opacity only, no movement) to avoid distracting animation.
+ */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+
+/* =============================================================
+   13. RESPONSIVE — TABLET (≥ 600 px)
+   ─────────────────────────────────────────────────────────────
+   On tablet-width screens and above, the weather-primary section
+   switches from a vertical stack to a horizontal row:
+   [Large Icon]  |  [City name + label]
+   This matches the DESIGN.md §5.2 desktop wireframe.
+   ============================================================= */
+@media (min-width: 600px) {
+  /*
+   * Switch the primary section to a horizontal row on wider screens.
+   * The icon sits to the left; the title group is to the right.
+   * gap: space-6 gives comfortable separation between them.
+   */
+  .weather-primary {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-6);
+    text-align: left;
+  }
+
+  /*
+   * Align the title text to the left when it's beside the icon.
+   */
+  .weather-title-group {
+    align-items: flex-start;
+  }
+
+  /*
+   * Give the weather card a bit more vertical padding on wider screens.
+   */
+  .weather-card {
+    padding: var(--space-8);
+  }
+}
+
+
+/* =============================================================
+   14. RESPONSIVE — MOBILE (≤ 480 px)
+   ─────────────────────────────────────────────────────────────
+   On narrow phones, reduce padding and stack info cards vertically.
+   Temperature drops to xl (32 px) so it doesn't overflow.
+   ============================================================= */
+@media (max-width: 480px) {
+  /* Tighter page padding so content fits edge-to-edge */
+  .site-main {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  /* Slightly more compact header on small screens */
+  .site-header {
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-3);
+  }
+
+  /* Reduce card padding to space-4 (16 px) on phones */
+  .weather-card {
+    padding: var(--space-4);
+    gap: var(--space-4);
+  }
+
+  /*
+   * Scale the temperature number down so it fits on a 320 px screen.
+   * font-size-xl = 32 px, still clearly dominant.
+   */
+  .temp-value {
+    font-size: var(--font-size-xl);
+  }
+
+  /* Match the °C unit to the smaller temperature size */
+  .temp-unit {
+    font-size: var(--font-size-lg);
+  }
+
+  /* Stack humidity and wind cards vertically on phones */
+  .weather-secondary {
+    grid-template-columns: 1fr;
+  }
+
+  /* Slightly smaller icon on tiny screens */
+  .weather-icon {
+    font-size: 3rem;
+  }
+}
+
+
+/* =============================================================
+   15. ACCESSIBILITY — REDUCED MOTION
+   ─────────────────────────────────────────────────────────────
+   Some users have vestibular disorders or simply prefer less motion.
+   @media (prefers-reduced-motion: reduce) respects the operating
+   system setting "Reduce motion" (macOS/iOS) or "Reduce animations"
+   (Windows/Android).
+   We stop the spinner from spinning and remove the fadeIn animation
+   while keeping the elements fully visible.
+   ============================================================= */
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * Replace the continuous spin with a static blue circle.
+   * The loading indicator remains visible — only the motion is removed.
+   */
+  .spinner {
+    animation: none;
+    border-top-color: var(--color-accent);
+    opacity: 0.7;
+  }
+
+  /*
+   * Remove the icon entrance animation — element appears instantly.
+   */
+  .weather-icon {
+    animation: none;
+  }
+
+  /*
+   * Remove the button press scale effect.
+   */
+  .retry-button:active {
+    transform: none;
+  }
+}

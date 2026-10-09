@@ -39,7 +39,7 @@ Checking weather often means navigating to a cluttered, ad-heavy website or inst
 
 | ID | Requirement |
 |----|-------------|
-| FR-01 | A dropdown (`<select>`) must list at least 5 predefined cities. |
+| FR-01 | A dropdown (`<select>`) must list the 6 predefined cities (Indore, Bhopal, Mumbai, New Delhi, Bengaluru, Chennai). |
 | FR-02 | Selecting a city must trigger a fetch to the Open-Meteo API using that city's latitude and longitude. |
 | FR-03 | The response must be parsed and the following values displayed: temperature (°C), weather condition text, weather icon, relative humidity (%), wind speed (km/h). |
 | FR-04 | While the request is in flight, a loading indicator must be visible and the weather data area must be hidden or dimmed. |

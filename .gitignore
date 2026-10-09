@@ -1,0 +1,70 @@
+# .gitignore — Weather Dashboard
+#
+# This file tells Git which files and folders to ignore.
+# Ignored files will NOT be included in commits or pushed to GitHub.
+#
+# Rules:
+#   - Lines starting with # are comments.
+#   - A trailing / means "only match folders, not files".
+#   - A leading / means "only match in the project root".
+#   - * is a wildcard (matches anything).
+
+# ─── Operating System Files ──────────────────────────────────────────
+
+# macOS metadata files created automatically by Finder.
+.DS_Store
+.DS_Store?
+._*
+
+# Windows thumbnail cache files.
+Thumbs.db
+ehthumbs.db
+
+# Windows shortcut files.
+Desktop.ini
+
+# ─── Editor and IDE Files ─────────────────────────────────────────────
+
+# VS Code workspace settings (personal preferences, not project config).
+# The folder itself is fine to commit if it contains shared settings,
+# but .history contains local undo history and should not be shared.
+.vscode/settings.json
+.vscode/.history/
+
+# JetBrains IDEs (WebStorm, etc.)
+.idea/
+
+# Sublime Text
+*.sublime-workspace
+
+# ─── Logs and Temporary Files ─────────────────────────────────────────
+
+*.log
+npm-debug.log*
+
+# ─── Local Browser and Test Profiles ──────────────────────────────────
+.chrome_profile/
+
+# ─── Local Environment and Secrets ────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── DO NOT IGNORE — required source files ───────────────────────────
+# The entries below explicitly ensure these files are NEVER ignored,
+# even if a parent rule would otherwise match them.
+
+!index.html
+!css/
+!css/style.css
+!js/
+!js/script.js
+!js/weather.js
+!js/ui.js
+!js/cities.js
+!README.md
+!PROJECT.md
+!AGENTS.md
+!PRD.md
+!TKD.md
+!DESIGN.md
