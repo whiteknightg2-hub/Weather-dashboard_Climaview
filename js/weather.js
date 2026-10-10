@@ -149,6 +149,82 @@ export async function reverseGeocode(lat, lon) {
   }
 }
 
+// ─── India-Wide Geocoding Search ──────────────────────────────────────
+const GEOCODING_BASE_URL = "https://geocoding-api.open-meteo.com/v1/search";
+
+/**
+ * Searches cities across India using Open-Meteo Geocoding API.
+ * Restricts queries to India (&country_code=IN) and client-side validates.
+ *
+ * @param {string} query
+ * @param {AbortSignal} [signal] Optional abort signal for cancellation
+ * @returns {Promise<Array<{ name: string, state: string, country: string, lat: number, lon: number, displayName: string }>>}
+ */
+export async function searchCities(query, signal) {
+  const trimmed = (query || "").trim();
+  if (trimmed.length < 2) return [];
+
+  const params = new URLSearchParams({
+    name: trimmed,
+    count: "20",
+    language: "en",
+    format: "json",
+    country_code: "IN",
+  });
+
+  const url = `${GEOCODING_BASE_URL}?${params.toString()}`;
+  const response = await fetch(url, { signal });
+
+  if (!response.ok) {
+    throw weatherError(`Geocoding service returned HTTP ${response.status}.`);
+  }
+
+  const data = await response.json();
+  if (!data || !Array.isArray(data.results)) {
+    return [];
+  }
+
+  // Filter strictly to India (by country_code or country name)
+  const indiaResults = data.results.filter(
+    (item) => (item.country_code || "").toUpperCase() === "IN" || (item.country || "").toLowerCase() === "india"
+  );
+
+  // Format and deduplicate
+  const seen = new Set();
+  const formatted = [];
+
+  for (const item of indiaResults) {
+    const name = item.name;
+    const state = item.admin1 || item.admin2 || "";
+    const district = item.admin2 && item.admin2 !== state ? item.admin2 : "";
+    const country = item.country || "India";
+    const lat = item.latitude;
+    const lon = item.longitude;
+
+    // Deduplication key
+    const key = `${name.toLowerCase()}|${state.toLowerCase()}|${lat.toFixed(2)}|${lon.toFixed(2)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const subText = [district, state, country].filter(Boolean).join(", ");
+    const displayName = state ? `${name}, ${state}` : `${name}, India`;
+
+    formatted.push({
+      name,
+      state: state || district || "India",
+      country,
+      region: state || district || "India",
+      displayName,
+      subText,
+      lat,
+      lon,
+      isSearched: true,
+    });
+  }
+
+  return formatted;
+}
+
 // ─── Main Weather Fetch Function ──────────────────────────────────────
 
 /**

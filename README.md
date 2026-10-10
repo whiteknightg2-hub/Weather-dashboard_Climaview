@@ -6,13 +6,15 @@ A clean, minimal, responsive weather dashboard that shows real current weather d
 
 ## Features
 
-- Choose from 6 predefined cities via a dropdown menu.
-- Live current weather data from the free [Open-Meteo API](https://open-meteo.com/) — no API key needed.
-- Displays: temperature (°C), weather condition with emoji icon, relative humidity (%), and wind speed (km/h).
-- Loading spinner while data is being fetched.
-- Clear error message and a **Try Again** button if the request fails.
-- Fully responsive — works on mobile (375 px) and desktop (1280 px).
-- Keyboard-accessible controls.
+- **India-Wide Dynamic Search:** Search for any city, town, or district across India using the Open-Meteo Geocoding API with live debounced autocomplete suggestions.
+- **6 Curated Regional Hubs:** Quick picks for Indore, Bhopal, Mumbai, Delhi, Bengaluru, and Chennai.
+- **Real-Time Atmospheric Telemetry:** Live current weather from [Open-Meteo](https://open-meteo.com/) — temperature, condition icons, relative humidity, wind speed, wind direction, apparent temperature, and UV index.
+- **24-Hour Thermal Trajectory:** Interactive SVG sparkline chart illustrating 24-hour temperature evolution.
+- **7-Day Synoptic Outlook:** Daily high/low temperature forecasts and precipitation probabilities.
+- **Multi-Screen Experience:** Seamlessly navigate between City Observatory, Weather Report, Historical Comparisons, Travel Weather Planner, and User Settings.
+- **Customizable Preferences:** Temperature unit toggle (°C / °F), wind speed unit toggle (km/h / mph), and persistent favorites in `localStorage`.
+- **Keyboard & Screen-Reader Accessible:** Accessible autocomplete combobox (`role="combobox"`, `aria-autocomplete`, Arrow navigation, Enter to select, Escape to close).
+- **Graceful Error Recovery:** Built-in loading spinners, polite empty-search feedback, and connection retry banners.
 
 ---
 
@@ -81,11 +83,13 @@ weather-dashboard/
 
 ## API Attribution
 
-Weather data is provided by **[Open-Meteo](https://open-meteo.com/)** — a free, open-source weather API that requires no registration or API key.
+Weather data and geocoding services are provided by **[Open-Meteo](https://open-meteo.com/)** — a free, open-source weather and geocoding platform that requires no registration or API key.
 
-- API endpoint: `https://api.open-meteo.com/v1/forecast`
-- Fields used: `temperature_2m`, `relative_humidity_2m`, `apparent_temperature`, `weather_code`, `wind_speed_10m`, `wind_direction_10m`
-- Data refreshes approximately every 15 minutes.
+- **Forecast API endpoint:** `https://api.open-meteo.com/v1/forecast`
+  - Fields used: `temperature_2m`, `relative_humidity_2m`, `apparent_temperature`, `weather_code`, `wind_speed_10m`, `wind_direction_10m`, `uv_index`, `precipitation_probability`
+  - Data refreshes approximately every 15 minutes.
+- **Geocoding API endpoint:** `https://geocoding-api.open-meteo.com/v1/search`
+  - Powers India-wide city and town search (`country_code=IN`) with district/state disambiguation.
 
 ---
 

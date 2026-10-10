@@ -56,6 +56,8 @@ const solarSunriseEl      = document.getElementById("solar-sunrise");
 const solarSunsetEl       = document.getElementById("solar-sunset");
 const reportTimestampEl   = document.getElementById("report-timestamp");
 const hourlyForecastList  = document.getElementById("hourly-forecast-list");
+const tempTrendChartEl    = document.getElementById("temp-trend-chart");
+const chartTempRangeEl    = document.getElementById("chart-temp-range");
 const dailyForecastList   = document.getElementById("daily-forecast-list");
 const historyRecordsList  = document.getElementById("history-records-list");
 const historyStationLabel = document.getElementById("history-station-label");
@@ -291,6 +293,67 @@ export function showWeather(data, unit = "celsius", isFavorite = false, windUnit
     });
   }
 
+  // ── Render 24-Hour Temperature Trend Chart (SVG) ───────────────────
+  if (tempTrendChartEl && Array.isArray(data.hourly) && data.hourly.length > 0) {
+    const hours = data.hourly;
+    const temps = hours.map((h) => formatTemp(h.temperature, unit));
+    const minT = Math.min(...temps);
+    const maxT = Math.max(...temps);
+    const range = Math.max(1, maxT - minT);
+
+    if (chartTempRangeEl) {
+      chartTempRangeEl.textContent = `Min ${minT}${unitSymbol} • Max ${maxT}${unitSymbol}`;
+    }
+
+    // SVG coordinates: viewBox="0 0 600 120", leave padding
+    const width = 600;
+    const height = 120;
+    const paddingX = 25;
+    const paddingTop = 20;
+    const paddingBottom = 25;
+    const usableH = height - paddingTop - paddingBottom;
+    const stepX = (width - paddingX * 2) / (hours.length - 1);
+
+    const points = hours.map((h, idx) => {
+      const x = paddingX + idx * stepX;
+      const t = formatTemp(h.temperature, unit);
+      const norm = (t - minT) / range;
+      const y = height - paddingBottom - norm * usableH;
+      return { x, y, temp: t, time: idx === 0 ? "Now" : h.time.slice(11, 16) };
+    });
+
+    const pathD = points.reduce((acc, p, i) => `${acc} ${i === 0 ? "M" : "L"} ${p.x.toFixed(1)},${p.y.toFixed(1)}`, "");
+    const areaD = `${pathD} L ${points[points.length - 1].x.toFixed(1)},${height} L ${points[0].x.toFixed(1)},${height} Z`;
+
+    // Key sample markers (every 4 hours: 0, 4, 8, 12, 16, 20, 23)
+    const markerIndices = [0, 4, 8, 12, 16, 20, hours.length - 1];
+    const markersSvg = markerIndices
+      .map((idx) => {
+        const p = points[idx];
+        if (!p) return "";
+        return `
+          <g class="chart-point" tabindex="0">
+            <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#2f6671" stroke="#ffffff" stroke-width="2"></circle>
+            <text x="${p.x.toFixed(1)}" y="${(p.y - 8).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="600" fill="#071d2f">${p.temp}°</text>
+            <text x="${p.x.toFixed(1)}" y="${(height - 6)}" text-anchor="middle" font-size="9.5" fill="#55615b">${p.time}</text>
+          </g>
+        `;
+      })
+      .join("");
+
+    tempTrendChartEl.innerHTML = `
+      <defs>
+        <linearGradient id="chart-area-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#b5ebf9" stop-opacity="0.65"></stop>
+          <stop offset="100%" stop-color="#f7f9ff" stop-opacity="0.05"></stop>
+        </linearGradient>
+      </defs>
+      <path d="${areaD}" fill="url(#chart-area-grad)"></path>
+      <path d="${pathD}" fill="none" stroke="#2f6671" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path>
+      ${markersSvg}
+    `;
+  }
+
   // ── Render 7-Day Synoptic Outlook ──────────────────────────────────
   if (dailyForecastList && Array.isArray(data.forecast) && data.forecast.length > 0) {
     dailyForecastList.innerHTML = "";
@@ -477,7 +540,11 @@ export function filterCityCards(query, favoritesOnly = false, favoriteSet = new 
   });
 
   if (emptySearch) {
-    if (visibleCount === 0) {
+    // Only display static station empty state if the user is strictly filtering the quick picks
+    // or if the search term is empty/short and filtered by favorites.
+    // When typing >= 2 characters for an India-wide search, the dynamic autocomplete dropdown
+    // handles suggestions and empty states without falsely claiming the city is not in network.
+    if (visibleCount === 0 && (term.length < 2 || favoritesOnly)) {
       emptySearch.classList.remove("hidden");
       emptySearch.classList.add("flex");
     } else {
@@ -485,6 +552,209 @@ export function filterCityCards(query, favoritesOnly = false, favoriteSet = new 
       emptySearch.classList.remove("flex");
     }
   }
+}
+
+// ─── India-Wide Autocomplete Dropdown Renderer ─────────────────────
+
+const searchDropdown = document.getElementById("search-autocomplete-dropdown");
+const searchInput = document.getElementById("station-search");
+const recentSearchesBar = document.getElementById("recent-searches-bar");
+const recentSearchesList = document.getElementById("recent-searches-list");
+
+/**
+ * Hides the autocomplete suggestions dropdown.
+ */
+export function hideSearchDropdown() {
+  if (searchDropdown) {
+    searchDropdown.classList.add("hidden");
+    searchDropdown.innerHTML = "";
+  }
+  if (searchInput) {
+    searchInput.setAttribute("aria-expanded", "false");
+  }
+}
+
+/**
+ * Renders loading state in the search dropdown.
+ */
+export function showSearchLoading() {
+  if (!searchDropdown) return;
+  searchDropdown.classList.remove("hidden");
+  if (searchInput) searchInput.setAttribute("aria-expanded", "true");
+  searchDropdown.innerHTML = `
+    <div class="p-3 text-center text-xs text-on-surface-variant flex items-center justify-center gap-2">
+      <span class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
+      <span>Searching observatories across India…</span>
+    </div>
+  `;
+}
+
+/**
+ * Renders search error in dropdown with retry.
+ * @param {string} msg
+ * @param {Function} onRetry
+ */
+export function showSearchError(msg, onRetry) {
+  if (!searchDropdown) return;
+  searchDropdown.classList.remove("hidden");
+  if (searchInput) searchInput.setAttribute("aria-expanded", "true");
+  searchDropdown.innerHTML = `
+    <div class="p-3 text-center text-xs text-error flex flex-col items-center gap-2">
+      <span>${msg}</span>
+      <button class="btn-retry-search px-3 py-1 rounded-full bg-error-container text-on-error-container text-[11px] font-semibold hover:bg-error/20 transition-colors" type="button">Retry</button>
+    </div>
+  `;
+  const btn = searchDropdown.querySelector(".btn-retry-search");
+  if (btn && onRetry) {
+    btn.addEventListener("click", onRetry);
+  }
+}
+
+/**
+ * Renders geocoding results into the autocomplete dropdown.
+ * @param {Array<Object>} results
+ * @param {Set<string>} favoriteSet
+ * @param {Function} onSelect
+ * @param {Function} onToggleFav
+ */
+export function renderSearchDropdown(results, favoriteSet, onSelect, onToggleFav) {
+  if (!searchDropdown) return;
+
+  if (!results || results.length === 0) {
+    searchDropdown.classList.remove("hidden");
+    if (searchInput) searchInput.setAttribute("aria-expanded", "true");
+    searchDropdown.innerHTML = `
+      <div class="p-4 text-center text-xs text-on-surface-variant flex flex-col items-center gap-1">
+        <span class="material-symbols-outlined text-[20px] text-tertiary">location_off</span>
+        <span class="font-medium">No matching Indian cities found</span>
+        <span class="text-[11px] text-tertiary">Check spelling or search by district/state name.</span>
+      </div>
+    `;
+    return;
+  }
+
+  searchDropdown.classList.remove("hidden");
+  if (searchInput) searchInput.setAttribute("aria-expanded", "true");
+  searchDropdown.innerHTML = "";
+
+  results.forEach((city, idx) => {
+    const isFav = favoriteSet.has(city.name);
+    const item = document.createElement("div");
+    item.className = "search-result-item flex items-center justify-between p-2.5 rounded-xl hover:bg-surface-container-low cursor-pointer transition-colors focus:bg-surface-container focus:outline-none";
+    item.setAttribute("role", "option");
+    item.setAttribute("tabindex", "0");
+    item.setAttribute("data-index", String(idx));
+
+    item.innerHTML = `
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-7 h-7 rounded-full bg-primary-container/60 text-primary flex items-center justify-center flex-shrink-0">
+          <span class="material-symbols-outlined text-[16px]">location_on</span>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span class="font-semibold text-xs text-on-surface truncate">${city.name}</span>
+            <span class="px-1.5 py-0.5 rounded text-[9.5px] font-medium bg-tertiary-fixed text-on-tertiary-fixed truncate">${city.state}</span>
+          </div>
+          <p class="text-[11px] text-tertiary truncate">${city.subText || `${city.state}, India`} • ${city.lat.toFixed(2)}° N, ${city.lon.toFixed(2)}° E</p>
+        </div>
+      </div>
+      <button class="btn-fav-search p-1.5 rounded-full hover:bg-surface-container text-tertiary transition-colors flex-shrink-0" title="Toggle Favorite" type="button" aria-label="Favorite ${city.name}">
+        <span class="material-symbols-outlined text-[18px] ${isFav ? "text-amber-500" : "text-tertiary"}">${isFav ? "star" : "star_border"}</span>
+      </button>
+    `;
+
+    // Click handler for city selection
+    item.addEventListener("click", (e) => {
+      if (e.target.closest(".btn-fav-search")) return;
+      onSelect(city);
+    });
+
+    item.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        onSelect(city);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const next = item.nextElementSibling;
+        if (next && next.classList.contains("search-result-item")) next.focus();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prev = item.previousElementSibling;
+        if (prev && prev.classList.contains("search-result-item")) {
+          prev.focus();
+        } else if (searchInput) {
+          searchInput.focus();
+        }
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        hideSearchDropdown();
+        if (searchInput) searchInput.focus();
+      }
+    });
+
+    // Favorite button inside dropdown
+    const favBtn = item.querySelector(".btn-fav-search");
+    if (favBtn) {
+      favBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onToggleFav(city.name);
+        const star = favBtn.querySelector(".material-symbols-outlined");
+        if (star) {
+          const nowFav = favoriteSet.has(city.name);
+          star.textContent = nowFav ? "star" : "star_border";
+          star.className = `material-symbols-outlined text-[18px] ${nowFav ? "text-amber-500" : "text-tertiary"}`;
+        }
+      });
+    }
+
+    searchDropdown.appendChild(item);
+  });
+}
+
+/**
+ * Renders recent searches bar with interactive chips.
+ * @param {Array<Object>} recentSearches
+ * @param {Function} onSelect
+ * @param {Function} onRemove
+ */
+export function renderRecentSearches(recentSearches, onSelect, onRemove) {
+  if (!recentSearchesBar || !recentSearchesList) return;
+
+  if (!recentSearches || recentSearches.length === 0) {
+    recentSearchesBar.classList.add("hidden");
+    recentSearchesList.innerHTML = "";
+    return;
+  }
+
+  recentSearchesBar.classList.remove("hidden");
+  recentSearchesList.innerHTML = "";
+
+  recentSearches.slice(0, 6).forEach((city) => {
+    const chip = document.createElement("div");
+    chip.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-container-lowest border border-surface-container-high/60 shadow-sm hover:bg-surface-container text-xs text-on-surface cursor-pointer transition-all flex-shrink-0 group";
+    chip.innerHTML = `
+      <span class="material-symbols-outlined text-[13px] text-primary">schedule</span>
+      <span class="font-medium truncate max-w-[100px]">${city.name}</span>
+      <button class="btn-remove-recent opacity-60 hover:opacity-100 hover:text-error transition-opacity flex items-center p-0.5" type="button" aria-label="Remove ${city.name}">
+        <span class="material-symbols-outlined text-[12px]">close</span>
+      </button>
+    `;
+
+    chip.addEventListener("click", (e) => {
+      if (e.target.closest(".btn-remove-recent")) return;
+      onSelect(city);
+    });
+
+    const removeBtn = chip.querySelector(".btn-remove-recent");
+    if (removeBtn) {
+      removeBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onRemove(city.name);
+      });
+    }
+
+    recentSearchesList.appendChild(chip);
+  });
 }
 
 // ─── Multi-City Comparison Renderer (Screen 3) ─────────────────────

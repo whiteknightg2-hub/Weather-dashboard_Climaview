@@ -13,7 +13,7 @@
 
 // ─── Imports ──────────────────────────────────────────────────────────
 import { CITIES } from "./cities.js";
-import { fetchWeather, reverseGeocode } from "./weather.js";
+import { fetchWeather, reverseGeocode, searchCities } from "./weather.js";
 import {
   showLoading,
   showError,
@@ -25,15 +25,21 @@ import {
   filterCityCards,
   renderComparisonCards,
   renderTravelResult,
+  showSearchLoading,
+  showSearchError,
+  renderSearchDropdown,
+  hideSearchDropdown,
+  renderRecentSearches,
 } from "./ui.js";
 
 // ─── LocalStorage Persistence Helpers ─────────────────────────────────
 const STORAGE_KEYS = {
-  USER_PROFILE: "wd_user_profile",
-  FAVORITES:    "wd_favorite_cities",
-  UNIT:         "wd_temp_unit",
-  WIND_UNIT:    "wd_wind_unit",
-  LAST_CITY:    "wd_last_city",
+  USER_PROFILE:   "wd_user_profile",
+  FAVORITES:      "wd_favorite_cities",
+  UNIT:           "wd_temp_unit",
+  WIND_UNIT:      "wd_wind_unit",
+  LAST_CITY:      "wd_last_city",
+  RECENT_SEARCHES:"wd_recent_searches",
 };
 
 /**
@@ -108,11 +114,30 @@ function saveWindPreference(unit) {
   } catch {}
 }
 
+/**
+ * Loads recent searches list.
+ * @returns {Array<Object>}
+ */
+function loadRecentSearches() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.RECENT_SEARCHES);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
+}
+
+function saveRecentSearches(list) {
+  try {
+    localStorage.setItem(STORAGE_KEYS.RECENT_SEARCHES, JSON.stringify(list.slice(0, 8)));
+  } catch {}
+}
+
 // ─── Application State ────────────────────────────────────────────────
 let userProfile       = loadUserProfile();
 let favoriteCities    = loadFavorites();
 let tempUnit          = loadUnitPreference();
 let windSpeedUnit     = loadWindPreference();
+let recentSearches    = loadRecentSearches();
 
 let selectedCity      = CITIES[0];
 let selectedCityIndex = 0;
@@ -120,6 +145,12 @@ let lastFetchedCity   = null;
 let latestWeatherData = null;
 let requestCount      = 0;
 let favoritesOnlyFilter = false;
+
+// Search state
+let searchDebounceTimer = null;
+let searchAbortController = null;
+let searchRequestCounter = 0;
+let lastGeocodingResults = [];
 
 // ─── DOM References ───────────────────────────────────────────────────
 const navBrand            = document.getElementById("nav-brand");
@@ -380,7 +411,9 @@ async function requestUserLocation() {
 if (btnLiveLocation) btnLiveLocation.addEventListener("click", requestUserLocation);
 if (btnQuickDetectLoc) btnQuickDetectLoc.addEventListener("click", requestUserLocation);
 
-// ─── Step 3: City Cards & Search Filter ────────────────────────────────
+// ─── Step 3: City Cards, India-Wide Geocoding & Search Filter ─────────
+
+const favCountBadge = document.getElementById("fav-count-badge");
 
 function toggleFavoriteCity(cityName) {
   if (favoriteCities.has(cityName)) {
@@ -390,6 +423,9 @@ function toggleFavoriteCity(cityName) {
   }
   saveFavorites(favoriteCities);
   updateCityCardsDisplay();
+  if (favCountBadge) {
+    favCountBadge.textContent = `Favorites (${favoriteCities.size})`;
+  }
   if (latestWeatherData && latestWeatherData.cityName === cityName) {
     showWeather(latestWeatherData, tempUnit, favoriteCities.has(cityName), windSpeedUnit);
   }
@@ -410,19 +446,171 @@ function updateCityCardsDisplay() {
     }
   );
   filterCityCards(stationSearch?.value || "", favoritesOnlyFilter, favoriteCities);
+  if (favCountBadge) {
+    favCountBadge.textContent = `Favorites (${favoriteCities.size})`;
+  }
+}
+
+function addRecentSearch(city) {
+  if (!city || !city.name) return;
+  // Remove if exists, then prepend
+  recentSearches = recentSearches.filter((item) => item.name.toLowerCase() !== city.name.toLowerCase());
+  recentSearches.unshift({
+    name: city.name,
+    state: city.state || city.region || "India",
+    region: city.region || city.state || "India",
+    country: city.country || "India",
+    lat: city.lat,
+    lon: city.lon,
+  });
+  saveRecentSearches(recentSearches);
+  renderRecentSearches(recentSearches, (c) => selectCityAndLoad(c), (name) => removeRecentSearch(name));
+}
+
+function removeRecentSearch(cityName) {
+  recentSearches = recentSearches.filter((c) => c.name !== cityName);
+  saveRecentSearches(recentSearches);
+  renderRecentSearches(recentSearches, (c) => selectCityAndLoad(c), (name) => removeRecentSearch(name));
+}
+
+function selectCityAndLoad(city) {
+  hideSearchDropdown();
+  if (stationSearch) stationSearch.value = "";
+  filterCityCards("", favoritesOnlyFilter, favoriteCities);
+
+  // Check if city matches any predefined CITIES
+  const presetIndex = CITIES.findIndex(
+    (c) => c.name.toLowerCase() === city.name.toLowerCase()
+  );
+
+  if (presetIndex !== -1) {
+    selectedCityIndex = presetIndex;
+    selectedCity = CITIES[presetIndex];
+  } else {
+    selectedCityIndex = -1;
+    selectedCity = {
+      name: city.name,
+      lat: city.lat,
+      lon: city.lon,
+      region: city.region || city.state || "India",
+      isSearched: true,
+    };
+  }
+
+  addRecentSearch(selectedCity);
+  updateCityCardsDisplay();
+  setActiveScreen("report");
+  loadWeatherForCity(selectedCity);
+}
+
+/**
+ * Executes debounced India-wide geocoding search.
+ */
+async function triggerGeocodingSearch(query) {
+  const term = query.trim();
+  if (term.length < 2) {
+    hideSearchDropdown();
+    return;
+  }
+
+  // Cancel prior in-flight request
+  if (searchAbortController) {
+    searchAbortController.abort();
+  }
+  searchAbortController = new AbortController();
+
+  searchRequestCounter += 1;
+  const currentReq = searchRequestCounter;
+
+  showSearchLoading();
+
+  try {
+    const results = await searchCities(term, searchAbortController.signal);
+    if (currentReq !== searchRequestCounter) return; // Stale guard
+    lastGeocodingResults = results;
+
+    renderSearchDropdown(
+      results,
+      favoriteCities,
+      (city) => selectCityAndLoad(city),
+      (cityName) => toggleFavoriteCity(cityName)
+    );
+  } catch (err) {
+    if (err.name === "AbortError") return;
+    if (currentReq !== searchRequestCounter) return;
+    showSearchError(
+      err.message || "Failed to search cities across India. Please retry.",
+      () => triggerGeocodingSearch(term)
+    );
+  }
 }
 
 // Search and filter listeners
 if (stationSearch) {
   stationSearch.addEventListener("input", (e) => {
-    filterCityCards(e.target.value, favoritesOnlyFilter, favoriteCities);
+    const val = e.target.value;
+    filterCityCards(val, favoritesOnlyFilter, favoriteCities);
+
+    clearTimeout(searchDebounceTimer);
+    if (val.trim().length >= 2) {
+      searchDebounceTimer = setTimeout(() => {
+        triggerGeocodingSearch(val);
+      }, 300); // 300ms debounce
+    } else {
+      hideSearchDropdown();
+    }
+  });
+
+  // Keyboard navigation inside search combobox
+  stationSearch.addEventListener("keydown", (e) => {
+    const dropdown = document.getElementById("search-autocomplete-dropdown");
+    if (!dropdown || dropdown.classList.contains("hidden")) {
+      if (e.key === "Escape") {
+        stationSearch.value = "";
+        filterCityCards("", favoritesOnlyFilter, favoriteCities);
+      }
+      return;
+    }
+
+    const items = dropdown.querySelectorAll(".search-result-item");
+    if (items.length === 0) return;
+
+    let focusedIdx = Array.from(items).findIndex((item) => item === document.activeElement);
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextIdx = focusedIdx < items.length - 1 ? focusedIdx + 1 : 0;
+      items[nextIdx].focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prevIdx = focusedIdx > 0 ? focusedIdx - 1 : items.length - 1;
+      items[prevIdx].focus();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      hideSearchDropdown();
+    } else if (e.key === "Enter") {
+      // If pressing enter on input when results exist, select top result
+      if (focusedIdx === -1 && lastGeocodingResults.length > 0) {
+        e.preventDefault();
+        selectCityAndLoad(lastGeocodingResults[0]);
+      }
+    }
   });
 }
+
+// Click outside to dismiss search autocomplete dropdown
+document.addEventListener("click", (e) => {
+  const wrapper = document.getElementById("search-combobox-wrapper");
+  if (wrapper && !wrapper.contains(e.target)) {
+    hideSearchDropdown();
+  }
+});
 
 if (searchClearBtn) {
   searchClearBtn.addEventListener("click", () => {
     if (stationSearch) {
       stationSearch.value = "";
+      hideSearchDropdown();
       filterCityCards("", favoritesOnlyFilter, favoriteCities);
       stationSearch.focus();
     }
@@ -448,6 +636,7 @@ if (filterAllCitiesBtn && filterFavCitiesBtn) {
 if (btnShowAllStations) {
   btnShowAllStations.addEventListener("click", () => {
     if (stationSearch) stationSearch.value = "";
+    hideSearchDropdown();
     favoritesOnlyFilter = false;
     filterCityCards("", false, favoriteCities);
   });
@@ -633,6 +822,7 @@ function setupTravelPlanner() {
 applyUserProfile();
 checkOnboarding();
 updateCityCardsDisplay();
+renderRecentSearches(recentSearches, (c) => selectCityAndLoad(c), (name) => removeRecentSearch(name));
 setupNav();
 setupTravelPlanner();
 

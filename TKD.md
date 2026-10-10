@@ -73,10 +73,11 @@ weather-dashboard/
 
 ## 4. Open-Meteo API
 
-### 4.1 Base URL
+### 4.1 Base URLs
 
 ```
-https://api.open-meteo.com/v1/forecast
+Forecast API:  https://api.open-meteo.com/v1/forecast
+Geocoding API: https://geocoding-api.open-meteo.com/v1/search
 ```
 
 ### 4.2 Required Query Parameters
